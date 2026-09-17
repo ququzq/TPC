@@ -1,0 +1,21 @@
+# CMake build directory (build artifacts + copied macros)
+build/
+
+# Generated simulation outputs (large)
+photons_in_LAr.txt
+photon_wavelength.txt
+
+# Large input data (exceeds GitHub file-size limits; not source)
+file/geant4_3d_field.txt
+file/*.stl
+
+# Geant4 visualization outputs
+*.prim
+*.wrl
+*.eps
+.DAWN_*
+
+# Compiled objects / libraries
+*.o
+*.a
+*.so
