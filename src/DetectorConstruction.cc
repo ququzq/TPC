@@ -92,26 +92,45 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
 
     G4Tubs* solidPMMASide = new G4Tubs("solidPMMASide", pmmaSide_rmin, pmmaSide_rmax, 0.5 * pmmaSide_h, 0.0, 360.0 * deg);
     G4LogicalVolume* logicPMMASide = new G4LogicalVolume(solidPMMASide, PMMA, "logicPMMASide");
-    new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5 * pmmaSide_h), logicPMMASide, "physPMMASide", logicWorld, false, 0, true);
+    G4VPhysicalVolume* physPMMASide = new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5 * pmmaSide_h), logicPMMASide, "physPMMASide", logicWorld, false, 0, true);
 
-    // 1.b & 2. 放置 79 个液氩环 / TPB 膜 / Clevios 环
-    // (作为 PMMA 侧板的子体积放置，免去昂贵的布尔运算)
-    G4double ring_w = 0.0001 * m;
-    G4double ring_h = 0.0060 * m;
+    // ===== 修改: TPB 改为覆盖整个 PMMA 内表面的 1µm 涂层 =====
+    // 结构理解: PMMA 内表面刻有 79 个环形槽(液氩环区域), Clevios 在槽内,
+    //           TPB 涂在刻槽后的不规整面上并直接接触 LAr:
+    //   - 非槽区: TPB 贴在 PMMA 内壁, r in [0.184, 0.184+1um]
+    //   - 槽区  : 液氩环宽度减小 1um, TPB 位于液氩环外侧,
+    //             r in [0.184+0.099mm, 0.184+0.1mm], Clevios 紧贴其外
+    // =========================================================
+    G4double ring_w   = 0.0001 * m;        // 槽(液氩环)总宽 0.1 mm
+    G4double ring_h   = 0.0060 * m;        // 槽高 6 mm
+    G4double tpb_t    = 1.0 * um;          // TPB 涂层厚度 1 um
+    G4double larRingW = ring_w - tpb_t;    // 液氩环宽度减小 1um -> 0.099 mm
 
-    // 液氩环：局部坐标 r in [0.184, 0.1841] -> 对应 PMMA 局部内半径 rmin 至 rmin + ring_w
-    G4Tubs* solidLArRing = new G4Tubs("solidLArRing", pmmaSide_rmin, pmmaSide_rmin + ring_w, 0.5 * ring_h, 0.0, 360.0 * deg);
+    // 液氩环：槽内液氩, r in [0.184, 0.184+0.099mm]
+    G4Tubs* solidLArRing = new G4Tubs("solidLArRing", pmmaSide_rmin, pmmaSide_rmin + larRingW, 0.5 * ring_h, 0.0, 360.0 * deg);
     G4LogicalVolume* logicLArRing = new G4LogicalVolume(solidLArRing, LAr, "logicLArRing");
 
-    // TPB 波长位移膜：局部坐标 r in [0.1841, 0.1842]
-    G4Tubs* solidTPBRing = new G4Tubs("solidTPBRing", pmmaSide_rmin + ring_w, pmmaSide_rmin + 2.0 * ring_w, 0.5 * ring_h, 0.0, 360.0 * deg);
+    // 槽区 TPB 涂层：位于液氩环外侧, r in [0.184+0.099mm, 0.184+0.1mm]
+    G4Tubs* solidTPBRing = new G4Tubs("solidTPBRing", pmmaSide_rmin + larRingW, pmmaSide_rmin + ring_w, 0.5 * ring_h, 0.0, 360.0 * deg);
     G4LogicalVolume* logicTPBRing = new G4LogicalVolume(solidTPBRing, TPB, "logicTPBRing");
 
-    // Clevios 环：局部坐标 r in [0.1842, 0.1843]
-    G4Tubs* solidCleviosRing = new G4Tubs("solidCleviosRing", pmmaSide_rmin + 2.0 * ring_w, pmmaSide_rmin + 3.0 * ring_w, 0.5 * ring_h, 0.0, 360.0 * deg);
+    // Clevios 环：紧贴 TPB 外侧(槽内), r in [0.184+0.1mm, 0.184+0.2mm]
+    G4Tubs* solidCleviosRing = new G4Tubs("solidCleviosRing", pmmaSide_rmin + ring_w, pmmaSide_rmin + 2.0 * ring_w, 0.5 * ring_h, 0.0, 360.0 * deg);
     G4LogicalVolume* logicCleviosRing = new G4LogicalVolume(solidCleviosRing, Clevios, "logicCleviosRing");
 
-    G4double z_step = 0.04975 * 0.25 * m;
+    // 非槽区 TPB 涂层：贴在 PMMA 内壁的薄壳段
+    // 段 0 高度 = z_step, 其余非槽段高度 = z_step - ring_h
+    G4double z_step     = 0.04975 * 0.25 * m;
+    G4double segH_first = z_step;
+    G4double segH_mid   = z_step - ring_h;
+
+    G4Tubs* solidTPBSegFirst = new G4Tubs("solidTPBSegFirst", pmmaSide_rmin, pmmaSide_rmin + tpb_t, 0.5 * segH_first, 0.0, 360.0 * deg);
+    G4LogicalVolume* logicTPBSegFirst = new G4LogicalVolume(solidTPBSegFirst, TPB, "logicTPBSegFirst");
+
+    G4Tubs* solidTPBSegMid = new G4Tubs("solidTPBSegMid", pmmaSide_rmin, pmmaSide_rmin + tpb_t, 0.5 * segH_mid, 0.0, 360.0 * deg);
+    G4LogicalVolume* logicTPBSegMid = new G4LogicalVolume(solidTPBSegMid, TPB, "logicTPBSegMid");
+
+    // 放置 79 个槽(LAr 环 + TPB + Clevios)及其反射膜
     for (int i = 0; i < 79; ++i) {
         G4double z_bottom_abs = z_step * (i + 1);
         // 转换到 PMMA 侧板局部坐标 (PMMA 中心在 z = 0.5 * 0.995m)
@@ -127,6 +146,37 @@ G4VPhysicalVolume* DetectorConstruction::Construct()
         new G4LogicalBorderSurface("TPBReflector", physTPBRing, physCleviosRing,
                                    MyMaterials::GetOpticalSurface("TPBReflectorSurface"));
     }
+
+    // 放置非槽区的 TPB 涂层段 (共 80 段: 段0 + 段1..78 + 段79)
+    for (int j = 0; j <= 79; ++j) {
+        G4double z_start, z_end;
+        G4LogicalVolume* segLogic;
+
+        if (j == 0) {
+            z_start  = 0.0;
+            z_end    = z_step;
+            segLogic = logicTPBSegFirst;
+        }
+        else if (j == 79) {
+            z_start  = z_step * 79 + ring_h;
+            z_end    = pmmaSide_h;
+            segLogic = logicTPBSegMid;
+        }
+        else {
+            z_start  = z_step * j + ring_h;
+            z_end    = z_step * (j + 1);
+            segLogic = logicTPBSegMid;
+        }
+
+        G4double zc_local = 0.5 * (z_start + z_end) - 0.5 * pmmaSide_h;
+        G4VPhysicalVolume* physSeg =
+            new G4PVPlacement(0, G4ThreeVector(0, 0, zc_local), segLogic, "physTPBSeg", logicPMMASide, false, j, false);
+
+        // 非槽区 TPB 外侧镜面反射膜：与槽区一致, 避免光子在全反射薄层内无限反射
+        new G4LogicalBorderSurface("TPBReflectorSeg", physSeg, physPMMASide,
+                                   MyMaterials::GetOpticalSurface("TPBReflectorSurface"));
+    }
+    // ============================================================
 
     // 5.2 PMMA 底面
     G4double pmmaBot_r = 0.190 * m;

@@ -4,6 +4,11 @@ build/
 # Generated simulation outputs (large)
 photons_in_LAr.txt
 photon_wavelength.txt
+photon_reflected.txt
+photon_reflected_wavelength.txt
+
+# Python bytecode cache
+__pycache__/
 
 # Large input data (exceeds GitHub file-size limits; not source)
 file/geant4_3d_field.txt

@@ -22,6 +22,10 @@ public:
 
     void RecordPhoton(double energy);
 
+    // ===== 修改: 新增记录被反射光子能量的接口 =====
+    void RecordReflectedPhoton(double energy);
+    // ============================================
+
 private:
 
     // 使用 static mutex 让所有线程共享
@@ -29,6 +33,10 @@ private:
 
     // 所有线程共享的光子能量
     static std::vector<double> fGlobalPhotonEnergies;
+
+    // ===== 修改: 所有线程共享的被反射光子能量 =====
+    static std::vector<double> fGlobalReflectedEnergies;
+    // =============================================
 };
 
 }

@@ -18,6 +18,10 @@ std::mutex RunAction::fGlobalMutex;
 
 std::vector<double> RunAction::fGlobalPhotonEnergies;
 
+// ===== 修改: 定义被反射光子能量的静态成员 =====
+std::vector<double> RunAction::fGlobalReflectedEnergies;
+// ==============================================
+
 
 // ============================================================
 // Constructor / Destructor
@@ -47,6 +51,10 @@ void RunAction::BeginOfRunAction(const G4Run*)
 
         fGlobalPhotonEnergies.clear();
 
+        // ===== 修改: 同步清空被反射光子数据 =====
+        fGlobalReflectedEnergies.clear();
+        // ======================================
+
         G4cout << "============================================"
                << G4endl;
 
@@ -69,6 +77,20 @@ void RunAction::RecordPhoton(double energy)
 
     fGlobalPhotonEnergies.push_back(energy);
 }
+
+
+// ============================================================
+// RecordReflectedPhoton
+// ============================================================
+
+// ===== 修改: 记录被反射光子的能量 (与 RecordPhoton 类似) =====
+void RunAction::RecordReflectedPhoton(double energy)
+{
+    std::lock_guard<std::mutex> lock(fGlobalMutex);
+
+    fGlobalReflectedEnergies.push_back(energy);
+}
+// ==========================================================
 
 
 // ============================================================
@@ -111,6 +133,34 @@ void RunAction::EndOfRunAction(const G4Run*)
 
     outFile.close();
 
+    // ===== 修改: 输出被反射光子的能量到 photon_reflected.txt =====
+    std::ofstream reflFile("photon_reflected.txt");
+
+    if (!reflFile.is_open())
+    {
+        G4cerr
+            << "Error: Could not open photon_reflected.txt!"
+            << G4endl;
+    }
+    else
+    {
+        reflFile << "# Reflected_Photon_ID\tEnergy(eV)\n";
+
+        for (size_t i = 0;
+             i < fGlobalReflectedEnergies.size();
+             ++i)
+        {
+            reflFile
+                << i + 1
+                << "\t"
+                << fGlobalReflectedEnergies[i] / eV
+                << "\n";
+        }
+
+        reflFile.close();
+    }
+    // ==========================================================
+
     G4cout
         << "============================================"
         << G4endl;
@@ -124,6 +174,18 @@ void RunAction::EndOfRunAction(const G4Run*)
     G4cout
         << " Data saved to photons_in_LAr.txt"
         << G4endl;
+
+    // ===== 修改: 打印被反射光子统计 =====
+    G4cout
+        << " Summary: "
+        << fGlobalReflectedEnergies.size()
+        << " photon reflections recorded."
+        << G4endl;
+
+    G4cout
+        << " Data saved to photon_reflected.txt"
+        << G4endl;
+    // ====================================
 
     G4cout
         << "============================================"
